@@ -1,0 +1,131 @@
+% DASFAA paper template based on Springer's LLNCS macro package.
+%
+\documentclass[runningheads]{llncs}
+%
+
+\usepackage[T1]{fontenc}
+%
+
+\usepackage{graphicx}
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+% If you use the hyperref package, please uncomment the following two lines
+% to display URLs in blue roman font according to Springer's eBook style:
+\usepackage{color}
+%\renewcommand\UrlFont{\color{blue}\rmfamily}
+%\urlstyle{rm}
+
+\usepackage[ruled, vlined, linesnumbered]{algorithm2e}
+\usepackage{amsfonts, amsmath}
+\usepackage{bm}
+\usepackage{booktabs} 
+%\usepackage[utf8]{inputenc}
+\usepackage{pifont}
+\usepackage{xcolor, xspace}
+\usepackage{multirow}
+\usepackage{cite}
+\usepackage{placeins}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+
+
+%
+\begin{document}
+%
+\title{Towards Federated LoRA Fine-tuning with Rank Heterogeneity}
+%
+%\titlerunning{Abbreviated paper title}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{Anonymous}
+%
+\authorrunning{Anonymous}
+\institute{Anonymous}
+
+% \author{First Author\inst{1}\orcidID{0000-1111-2222-3333} \and
+% Second Author\inst{2,3}\orcidID{1111-2222-3333-4444} \and
+% Third Author\inst{3}\orcidID{2222--3333-4444-5555}}
+% %
+% \authorrunning{F. Author et al.}
+% % First names are abbreviated in the running head.
+% % If there are more than two authors, 'et al.' is used.
+% %
+% \institute{Princeton University, Princeton NJ 08544, USA \and
+% Springer Heidelberg, Tiergartenstr. 17, 69121 Heidelberg, Germany
+% \email{lncs@springer.com}\\
+% \url{http://www.springer.com/gp/computer-science/lncs} \and
+% ABC Institute, Rupert-Karls-University Heidelberg, Heidelberg, Germany\\
+% \email{\{abc,lncs\}@uni-heidelberg.de}}
+%
+\maketitle              % typeset the header of the contribution
+%
+
+
+
+\newcommand{\etal}{\textit{et~al.}\xspace}
+\newcommand{\eg}{\textit{e.g.},\xspace}
+\newcommand{\ie}{\textit{i.e.},\xspace}
+\newcommand{\etc}{etc.\xspace}
+
+\newcommand\figref[1]{Fig.~\ref{#1}}
+\newcommand\algref[1]{Algorithm~\ref{#1}}
+\newcommand\tabref[1]{Table~\ref{#1}}
+\newcommand\secref[1]{Sec.~\ref{#1}}
+\newcommand\equref[1]{Eq.~(\ref{#1})}
+\newcommand\thmref[1]{Theorem ~\ref{#1}}
+\newcommand\lemmaref[1]{Lemma ~\ref{#1}}
+\newcommand\assumptionref[1]{Assumption ~\ref{#1}}
+\newcommand\appref[1]{Appendix~\ref{#1}}
+\newcommand\defref[1]{Definition~\ref{#1}}
+
+\newcommand{\fakeparagraph}[1]{\vspace{1mm}\noindent\textbf{#1.}}
+\newcommand{\sysname}{\text{DualAda}\xspace}
+
+\newcommand{\algnote}[1]{\textcolor{blue}{\tt{// #1}}}
+
+\ifodd 1
+\newcommand{\TODO}[1]{\textbf{\color{red}{TODO: #1} }}
+\newcommand{\TBD}[1]{\textbf{\color{blue}{TBD: #1} }}
+\newcommand{\zimu}[1]{{\color{brown}{#1}}}
+\newcommand{\boyi}[1]{{\color{blue}{#1}}}
+\newcommand{\mym}[1]{{\color{teal}{#1}}}
+
+% \newcommand{\todis}[1]{\textbf{{\color{teal}{TO DISCUSS: #1}}}}
+% \else
+% \newcommand{\TODO}[1]{#1}
+% \newcommand{\zimu}[1]{#1}
+% \newcommand{\boyi}[1]{#1}
+% \newcommand{\mym}[1]{#1}
+% \fi
+
+
+
+\begin{abstract}
+
+
+\end{abstract}
+
+
+\input{body/1-intro}
+\input{body/2-related}
+\input{body/3-problem}
+\input{body/4-method}
+\input{body/5-exp}
+
+\input{body/6-conclusion}
+\clearpage
+%
+% ---- Bibliography ----
+%
+% BibTeX users should specify bibliography style 'splncs04'.
+% References will then be sorted and formatted in the correct style.
+%
+\bibliographystyle{splncs04}
+\bibliography{refs}
+%
+
+\input{body/appendix}
+
+\end{document}

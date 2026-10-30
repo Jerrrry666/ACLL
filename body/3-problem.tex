@@ -1,0 +1,113 @@
+\section{Problem Statement}
+\label{sec:problem}
+
+\subsection{Preliminaries}
+
+\fakeparagraph{Federated LoRA Fine-tuning}
+We consider federated fine-tuning across $n$ clients, where client $i$ keeps its dataset $\mathcal{D}_i$ private and adapts a frozen LLM backbone $\phi$ through a LoRA module.
+Let $\omega_i=|\mathcal{D}_i|/\sum_{k=1}^{n}|\mathcal{D}_k|$ denote the fraction of training examples held by client $i$, with $\sum_{i=1}^{n}\omega_i=1$.
+In the standard homogeneous-rank setting, all clients optimize a shared adapter with factors $B\in\mathbb{R}^{d_{\mathrm{out}}\times r}$ and $A\in\mathbb{R}^{r\times d_{\mathrm{in}}}$.
+With the LoRA scaling absorbed into the factors and the layer index omitted, the federated objective is
+\begin{equation}
+    \min_{B,A}
+    \sum_{i=1}^{n}\omega_i
+    \mathcal{L}_i\!\left(\phi+BA;\mathcal{D}_i\right),
+    \label{equ:objective}
+\end{equation}
+where $\mathcal{L}_i$ is the mean training loss on client $i$'s local dataset.
+Clients optimize local copies of the common factors, which the server coordinates toward the shared adapter $BA$.
+
+
+\fakeparagraph{Federated LoRA Fine-tuning with Rank Heterogeneity}
+In resource-heterogeneous deployments, client $i$ may instead operate under a fixed, client-specific rank budget $r_i$~\cite{bai2024flexlora,wang2024flora,cho2024hetlora}.
+Under these client-specific feasible sets, the learning target becomes
+\begin{equation}
+    \begin{aligned}
+        \min_{\{B_i,A_i\}_{i=1}^{n}}\quad
+        &\sum_{i=1}^{n}\omega_i
+        \mathcal{L}_i\!\left(\phi+B_iA_i;\mathcal{D}_i\right) \\
+        \text{s.t.}\quad
+        &B_i\in\mathbb{R}^{d_{\mathrm{out}}\times r_i},\quad
+        A_i\in\mathbb{R}^{r_i\times d_{\mathrm{in}}},\quad i=1,\ldots,n,\\
+        &\left|\{r_i:i=1,\ldots,n\}\right|>1.
+    \end{aligned}
+    \label{equ:heterogeneous-objective}
+\end{equation}
+The final constraint makes rank heterogeneity explicit by requiring heterogeneous client budgets.
+Although the effective updates $B_iA_i$ share the common shape $d_{\mathrm{out}}\times d_{\mathrm{in}}$, their factor matrices have incompatible inner dimensions and therefore cannot be directly averaged across different ranks.
+Consequently, federated knowledge transfer across heterogeneous adapters must preserve each client's rank budget while accounting for its local adaptation needs.
+
+\fakeparagraph{Solution: Selective Rank Sharing}
+To enable cross-client knowledge transfer without changing client $i$'s fixed budget $r_i$, we use a globally shared prefix of width $s$ and a client-specific protected remainder of width $p_i=r_i-s$ (see \figref{fig:selective-rank-sharing}).
+Using subscripts $s$ and $p$ for the corresponding factor blocks, we write
+\begin{equation}
+    B_iA_i=B_{i,s}A_{i,s}+B_{i,p}A_{i,p},
+    \qquad p_i=r_i-s,\quad s\in\{0,\ldots,\min_{1\le k\le n}r_k\}.
+    \label{equ:selective-partition}
+\end{equation}
+Both blocks remain trainable.
+After local training, the server aggregates the shared blocks separately for $B$ and $A$ using the same sample-size weights:
+\begin{equation}
+    \bar{B}_{s}=\sum_{i=1}^{n}\omega_i B_{i,s},
+    \qquad
+    \bar{A}_{s}=\sum_{i=1}^{n}\omega_i A_{i,s},
+    \qquad
+    \sum_{i=1}^{n}\omega_i=1.
+    \label{equ:selective-aggregation}
+\end{equation}
+The server broadcasts $(\bar{B}_{s},\bar{A}_{s})$ to synchronize the shared prefix, while each client retains its protected block locally.
+Selective rank sharing therefore controls how much of each heterogeneous adapter receives common external knowledge while preserving each client's total rank budget.
+
+
+
+
+
+\subsection{Research Challenges}
+\label{sec:problem:challenges}
+
+Selective rank sharing preserves each client's fixed budget while allowing cross-client knowledge transfer, but it raises two coupled research challenges.
+\begin{itemize}
+    \item \textbf{How should a global receiving width be selected under heterogeneous rank budgets?}
+    With a globally shared width $s$, client $i$ retains protected capacity $p_i=r_i-s$ within its fixed budget $r_i$.
+    \figref{fig:acl-motivation}(a) shows that performance fluctuates as the shared rank changes and that the rank-16 and rank-64 groups respond differently on FLAN.
+    At $s=8$, rank-16 clients lose ROUGE-L relative to $s=0$, while rank-64 clients gain.
+    Moreover, the same width occupies different fractions of their budgets.
+    These variations motivate dynamically selecting the global width $s$ rather than fixing it in advance.
+
+    \item \textbf{How should the influence of external updates be adapted under coupled data and structural heterogeneity?}
+    Clients differ in both their local data and their adapter rank.
+    \figref{fig:acl-motivation}(b) shows that the relative similarity associated with matching rank versus matching domain differs across rank groups and training rounds.
+    The rank-16 cosine gap remains positive from R1 onward, whereas the rank-64 gap changes sign across rounds.
+    Thus, the relationship between client updates reflects both structural and data heterogeneity.
+    Naive averaging may overlook client-dependent differences among contributions, motivating a \textit{fine-grained collaboration} mechanism.
+\end{itemize}
+
+Moreover, the two challenges are \textit{coupled}, as illustrated in \figref{fig:compound-heterogeneity}.
+\begin{itemize}
+    \item The allocation mechanism determines the subspace in which external influence may enter.
+    This constrains the external knowledge available to the collaboration mechanism.
+    \item The collaboration mechanism determines how strongly external knowledge is applied, which in turn affects the utility of the selected global width.
+\end{itemize}
+We therefore seek to coordinate both allocation and collaboration, so each client can adaptively absorb useful external knowledge while preserving its fixed budget and local adaptation needs.
+
+\begin{figure}[t]
+    \centering
+    \begin{tikzpicture}[
+        factor/.style={draw=blue!45!black, fill=blue!5, rounded corners=2pt,
+            text width=4.1cm, minimum height=13mm, align=center, inner sep=5pt,
+            font=\small},
+        flow/.style={-{Stealth[length=2mm]}, thick, draw=gray!75}
+    ]
+        \node[factor] (allocation) at (0,0) {\textbf{Allocation}\\Select receiving and protected rank capacities};
+        \node[factor] (collaboration) at (7.3,0) {\textbf{Collaboration}\\Adaptively weight external updates for each client};
+        \draw[flow] ([yshift=2mm]allocation.east)
+            to[bend left=18] node[midway, above, font=\scriptsize, fill=white, inner sep=1pt]
+            {receiving capacity} ([yshift=2mm]collaboration.west);
+        \draw[flow] ([yshift=-2mm]collaboration.west)
+            to[bend left=18] node[midway, below, font=\scriptsize, fill=white, inner sep=1pt]
+            {transfer utility} ([yshift=-2mm]allocation.east);
+    \end{tikzpicture}
+    \caption{Compound Impact of Allocation and Collaboration.}
+    \label{fig:compound-heterogeneity}
+\end{figure}
+\FloatBarrier

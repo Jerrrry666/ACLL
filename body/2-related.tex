@@ -1,0 +1,26 @@
+\section{Related Work}
+\label{sec:related}
+
+\boyi{
+\fakeparagraph{Federated LLM Fine-tuning}
+Federated LLM fine-tuning collaboratively adapts a pretrained language model on decentralized private corpora without collecting raw client data.
+FedIT explores federated instruction tuning~\cite{zhang2024fedit}, while FFA-LoRA improves the efficiency of LoRA-based federated adaptation~\cite{sun2024ffalora}.
+Recent studies further personalize federated fine-tuning for non-IID clients: 
+FedDPA combines global and local adapters at inference~\cite{yang2024feddpa}, FedLEASE allocates domain-specific LoRA experts by representation similarity~\cite{wang2025fedlease}, and FedTreeLoRA organizes layer-wise sharing through a client hierarchy~\cite{bian2026fedtreelora}.
+These methods personalize adapter sharing or selection, but generally retain shape-compatible LoRA modules across clients and do not address resource-driven rank heterogeneity.
+In contrast, we focus on resource-driven model heterogeneity, where clients fine-tune LoRA adapters with different ranks.
+}
+
+\boyi{\fakeparagraph{Federated LLM Fine-tuning with Rank Heterogeneity}}
+A recent line of work lets the LoRA rank vary with client resources.
+FLoRA stacks zero-padded adapters into a common wide matrix~\cite{wang2024flora}.
+FlexLoRA aggregates full-size update matrices and redistributes rank by SVD truncation~\cite{bai2024flexlora}.
+HETLoRA sparsely aggregates self-pruned updates of different ranks~\cite{cho2024hetlora}.
+PF$^2$LoRA instead learns per-client ranks with a two-level sparsity regularizer~\cite{hao2025pf2lora}.
+
+\boyi{
+Nevertheless, these methods mainly determine how heterogeneous updates are aligned or decomposed at the server. 
+Within each client's fixed rank budget, we study two coupled questions:
+how much capacity to allocate to sharing, and which clients should influence its shared update and by how much.
+The value of an allocation depends on the collaboration relationships, while the allocation shapes the updates available for collaboration.
+}

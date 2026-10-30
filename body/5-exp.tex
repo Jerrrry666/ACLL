@@ -1,0 +1,80 @@
+\section{Experiments}
+\label{sec:exp}
+
+The FLAN motivation studies in \figref{fig:acl-motivation} examine a fixed shared-prefix protocol with eight clients and ranks 16 and 64.
+We report available federated LoRA baselines on NI and GLUE for context.
+\TODO{Add the method comparison after the collaboration metric is defined and the corresponding experiments are complete.}
+
+\subsection{Datasets}
+\label{sec:exp:datasets}
+We use the NI and GLUE Dirichlet $\alpha=0.5$ partitions, each with 16 clients.
+The total rank budgets are 16, 32, and 64 for six, five, and five clients, respectively.
+Each client has 200 test examples; the training and validation allocations for the reported methods are specified below.
+
+\subsection{Evaluation}
+\label{sec:exp:eval}
+We report client-macro ROUGE-L (R-L) for Super-NaturalInstructions (NI) and GLUE.
+For both datasets, each client generates answers on its test set, and the resulting client scores are averaged equally.
+GLUE follows the project's causal generation protocol, so its reported metric is ROUGE-L rather than task-specific classification accuracy.
+
+\subsection{Training Setup}
+\label{sec:exp:environments}
+The runs use Qwen3.5-0.8B and seed 615, with 10 main local optimizer steps per round and an effective batch size of eight.
+We evaluate checkpoint R9 after ten communication rounds.
+Method-specific optimizer phases and inference procedures incur additional computation beyond these main training steps.
+
+\subsection{Main Results}
+\label{sec:exp:results}
+\tabref{tab:exp-ni-dir05} reports the available NI baselines.
+\tabref{tab:exp-glue-dir05} reports the available GLUE baselines.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Client-macro ROUGE-L (\%) on Super-NaturalInstructions under Dirichlet $\alpha=0.5$.
+The highest and second-highest scores are shown in bold and underlined, respectively.}
+\label{tab:exp-ni-dir05}
+\begin{tabular}{lr}
+\toprule
+\textbf{Method} & \textbf{ROUGE-L (\%)} \\
+\midrule
+LocalOnly                          & \textbf{57.5208} \\
+FlexLoRA                           & \underline{54.7099} \\
+FLoRA                              & 51.0599 \\
+HetLoRA                            & 51.8617 \\
+PF$^2$LoRA                          & 48.4953 \\
+pFedLoRA                           & 51.3480 \\
+FedRoRA                            & 53.6302 \\
+Het-CPFLoRA                        & 54.0703 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Client-macro baseline ROUGE-L (\%) on GLUE under Dirichlet $\alpha=0.5$.
+The highest and second-highest scores are shown in bold and underlined, respectively.}
+\label{tab:exp-glue-dir05}
+\begin{tabular}{lr}
+\toprule
+\textbf{Method} & \textbf{ROUGE-L (\%)} \\
+\midrule
+LocalOnly                          & \textbf{79.9531} \\
+FlexLoRA                           & \underline{79.9010} \\
+FLoRA                              & 77.5885 \\
+FedRoRA                            & 77.1719 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\fakeparagraph{Comparison Scope}
+PF$^2$LoRA uses shared rank 4 and private rank 12, 28, or 60 to match each client's total rank budget.
+Het-CPFLoRA uses shared rank 12, 24, or 48 and its paper dynamic weighted inference protocol.
+For NI, LocalOnly, FlexLoRA, FLoRA, and FedRoRA train on 936 examples per client with 64 held out, whereas HetLoRA, PF$^2$LoRA, pFedLoRA, and Het-CPFLoRA use all 1000 training examples.
+The results therefore retain method-specific training-data and computation budgets.
+
+\fakeparagraph{Observed Results}
+Among the reported baselines, LocalOnly has the highest ROUGE-L on NI and GLUE.

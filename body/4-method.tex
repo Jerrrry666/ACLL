@@ -1,0 +1,145 @@
+\section{Method}
+\label{sec:method}
+
+% 2026-10-14: retain the complete-contribution and receiving-operator definitions from Section 39.
+% Collaboration scoring, strength selection, and dependent allocation rules are pending redesign.
+% Sources: ../FedLLM/ACL_Logs/method-39_progressive_recipient_allocation.md;
+% ../FedLLM/exp/_archive_exps/1003_acl_progressive_exchange/design/progressive_allocation_report.md;
+% ../FedLLM/alg/acl_1003_progressive_exchange.py and ../FedLLM/utils/progressive_{allocation_utils,metric}.py.
+% Paper s_i denotes receiving capacity; the implementation calls it q_i.
+% Writing references: ref/FedMosaic_SIGIR26_CR and ref/DarkDistill_KDD25_CR; see WRITING_STYLE.md.
+
+\TODO{Section 4.1 Overview}
+
+\TODO{Section 4.2 Allocation}
+\TODO{Take collboaration weight into method design}
+
+\TODO{Section 4.3 Adaptive Collaboration}
+\TODO{Take allocation result into method design}
+
+\TODO{Section 4.4 Putting it Together}
+
+\subsection{Overview}
+\label{sec:method:overview}
+
+\fakeparagraph{Key Idea}
+Under rank heterogeneity, a client should not have to choose between exposing its
+entire adapter and receiving no external knowledge.
+\sysname therefore decouples contribution from reception.
+Each client contributes its complete locally trained adapter to a round-level pool,
+while only a client-specific portion of its fixed rank budget is exposed to
+incoming updates.
+For client $i$, the receiving capacity $s_i$ and protected capacity $p_i=r_i-s_i$
+determine where external knowledge may enter, whereas a client-specific
+collaboration strength determines how much of that knowledge is applied.
+This separation preserves the client's total rank budget and local adaptation
+capacity while allowing useful cross-client transfer.
+
+\fakeparagraph{Challenge-to-Component Map}
+This design follows the two challenges in \secref{sec:problem:challenges}.
+The allocation module determines how client $i$ divides its fixed budget $r_i$
+between receiving and protected capacity, rather than imposing one sharing width
+on all clients.
+The collaboration module then determines whether the available external influence
+benefits client $i$ and, if so, how strongly it should be applied.
+The final putting-it-together procedure coordinates these decisions with complete
+contribution, so restricting a client's reception does not remove its knowledge
+from the pool available to other clients.
+
+\fakeparagraph{Workflow}
+At the beginning of each round, clients locally train both portions of their
+adapters under the fixed budgets in \equref{equ:heterogeneous-objective} and
+contribute their complete effective updates.
+The server constructs the external target for client $i$ from the other clients'
+updates using fixed training-size weights, as in \equref{equ:acl-target}.
+The allocation module selects a receiving capacity $s_i$ and thereby protects
+$p_i=r_i-s_i$ components.
+Given this capacity, the collaboration module constructs the residual between
+the external target and client $i$'s local update in the permitted subspace and
+selects its reception strength, including zero when external influence is not
+useful.
+The final update is applied only to the receiving portion, producing the
+personalized adapter used in the next round; the protected portion remains
+untouched by direct incoming modification.
+
+\fakeparagraph{Architecture}
+\begin{itemize}
+    \item \textbf{Allocation Module (\secref{sec:method:allocation}).}
+    It determines the client-specific capacity $s_i$ within the fixed rank
+    budget and reserves the remaining capacity for local adaptation.
+    \item \textbf{Collaboration Module (\secref{sec:method:collaboration}).}
+    It computes the external influence available within the selected receiving
+    subspace and determines its client-specific reception strength.
+    \item \textbf{Putting It Together.}
+    It orders complete contribution, capacity allocation, and selective reception
+    into one round-level procedure, while freezing the contribution pool before
+    applying incoming updates.
+\end{itemize}
+
+Together, these components turn selective rank sharing into a coordinated
+allocation-and-collaboration process: allocation controls where external
+knowledge may enter, collaboration controls whether it should enter, and the
+round procedure preserves complete contribution across clients.
+The following subsections detail these components in the same order as the
+workflow.
+
+\subsection{Local Training and Complete Contribution}
+\label{sec:method:contribution}
+
+For the proposed client-specific allocation, client $i$ partitions its adapter as
+\begin{equation}
+    B_iA_i=B_{i,s}A_{i,s}+B_{i,p}A_{i,p},
+    \qquad p_i=r_i-s_i,\quad s_i\in\{0,\ldots,r_i\}.
+    \label{equ:capacity-partition}
+\end{equation}
+Client $i$ minimizes its local term in \equref{equ:heterogeneous-objective} from its preceding personalized state, training both portions in \equref{equ:capacity-partition} with total width $r_i$ and LoRA scaling fixed.
+It then uploads the complete adapter, including the protected components, so that reducing its reception permission does not remove its knowledge from the contribution pool.
+Within a round, $B_i,A_i$ denote the factors after local training, with scaling absorbed as in \secref{sec:problem}.
+The server pools the other clients' complete effective updates into
+\begin{equation}
+    M_{-i}=\sum_{j\ne i}w_{ij}B_jA_j,
+    \qquad
+    w_{ij}=\frac{|\mathcal{D}_j|}{\sum_{k\ne i}|\mathcal{D}_k|},
+    \label{equ:acl-target}
+\end{equation}
+where $|\mathcal{D}_j|$ counts local training examples, excluding selection data.
+This forms an all-to-all contribution pool with every other client as an available source and training-size weights for the pooled target.
+The donor proportions are fixed across candidate widths, leaving the receiving subspace and strength to determine how the pooled knowledge affects each client.
+The server freezes all uploads before constructing receiving directions, so a change made during reception enters other clients' targets only in the next round.
+Without an external contribution, the client retains its local state.
+
+\subsection{Reception at a Given Capacity}
+\label{sec:method:collaboration}
+
+\fakeparagraph{Constructing the Receiving Direction}
+For a candidate width $s$, we permit reception into the first $s$ native components and protect the remaining $r_i-s$ components.
+Component identities retain their native order across rounds.
+Since equal component indices need not represent the same directions across clients, we compare their complete effective updates and project the difference into client $i$'s permitted subspace.
+For $s>0$, the server computes
+\begin{equation}
+    \Delta B_{i,s}=(M_{-i}-B_iA_i)A_{i,s}^{\dagger},
+    \label{equ:acl-direction}
+\end{equation}
+where $A_{i,s}^{\dagger}$ is the Moore--Penrose pseudoinverse.
+With strength $\lambda\in[0,1]$, reception gives
+\begin{equation}
+    \begin{aligned}
+        B_i(s,\lambda)&=[\,B_{i,s}+\lambda\Delta B_{i,s},\ B_{i,p}\,],
+        \qquad A_i(s,\lambda)=A_i,\\
+        B_i(s,\lambda)A_i
+        &=B_iA_i+\lambda(M_{-i}-B_iA_i)A_{i,s}^{\dagger}A_{i,s}.
+    \end{aligned}
+    \label{equ:acl-receive}
+\end{equation}
+The projection transfers the part of the residual represented in the selected row space, while changing only the receiving $B$ columns.
+Subtracting the complete local update accounts for content already retained in the protected block; the direction vanishes when the complete local and external updates coincide.
+The adapter retains $r_i$ component slots and algebraic rank at most $r_i$.
+Zero width or zero strength preserves the original factors exactly.
+
+\fakeparagraph{Collaboration Metric}
+\TODO{Define a computable collaboration metric and its use in selecting reception strength, including zero reception, after the design and corresponding experiments are ready.}
+
+\subsection{Progressive Capacity Allocation}
+\label{sec:method:allocation}
+
+\TODO{Reformulate capacity comparisons and update rules around the new collaboration metric once it is defined and evaluated.}

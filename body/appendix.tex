@@ -1,0 +1,92 @@
+\newpage
+\appendix
+
+\section{Motivation Study Setup}
+\label{sec:appendix:motivation-setup}
+
+% Sources: ../FedLLM/exp/_archive_exps/1023_flan1_motivation/PROTOCOL.md and
+% ../FedLLM/exp/_archive_exps/1023_flan1_motivation/recovery_tail_01/report/flan8c/RESULTS.md.
+% Frozen configurations: ../FedLLM/exp/_archive_exps/1023_flan1_motivation/configs/
+% flan1_8c_two_ranks_dir05_q8.yaml and flan1_8c_two_ranks_dir05_geometry_q8.yaml.
+
+This appendix details the shared-width study and the training-only similarity diagnostic in \figref{fig:acl-motivation}.
+
+\fakeparagraph{Dataset and Clients}
+The studies use eight task categories from FLAN~\cite{wei2022finetuned}: coreference, entailment, linguistic acceptability, paraphrase, question classification, structure-to-text generation, text formatting, and word disambiguation.
+We use a Dirichlet $\alpha=0.5$ allocation across eight clients, balanced to give each client 300 training examples and 200 test examples with matching local train/test task proportions.
+Four clients have fixed total rank 16, and the other four have rank 64.
+The dataset and client rank assignments are shared by both studies and remain fixed across the width sweep.
+
+\fakeparagraph{Model and Training}
+Both studies use Qwen3.5-0.8B, seed 615, full client participation, and 10 communication rounds with 10 local optimizer steps per round.
+The microbatch size is 2 with gradient accumulation over 4 microbatches, and the initial learning rate is $10^{-4}$, decayed by a factor of 0.99 per round.
+The physical LoRA rank and scaling parameter are both 64, with active capacity fixed to each client's assigned rank and dropout 0.05.
+The maximum sequence length is 2,048 tokens, reserving up to 512 tokens for the answer.
+We use the base shared-prefix method: for shared width $s>0$, the $B$ columns and $A$ rows of the first $s$ LoRA components are averaged separately across all clients, including the receiving client, after each round, while the remaining active components stay local.
+Aggregation is weighted by training sample count, giving equal weights here because all clients have 300 training examples.
+Both portions participate in training and prediction; $s=0$ uses the same local training protocol with no shared components.
+The same factor-averaging rule is used at every nonzero width, with no partner selection or fitted reception strength.
+
+\fakeparagraph{Shared-Width Study}
+For \figref{fig:acl-motivation}(a), all clients use a common shared width $s$, swept over $s\in\{0,\ldots,8\}$ while keeping the model, data, client ranks, seed, and training budget fixed.
+We evaluate the final post-aggregation models at R9 on all 200 test examples per client and average ROUGE-L first within each client, then equally across the four clients in each rank group.
+The plotted change is each group's mean at $s$ minus its own mean at $s=0$, in percentage points, using the full-precision saved client scores.
+The rank-16 and rank-64 groups have $s=0$ ROUGE-L scores of $64.2584\%$ and $65.3399\%$, respectively.
+The overall client means at $s=0$ and $s=8$ are $64.7991\%$ and $64.7644\%$, respectively.
+The two rank groups contribute equally to the overall mean because each contains four clients.
+
+\fakeparagraph{Similarity Diagnostic}
+For \figref{fig:acl-motivation}(b), all clients use a fixed shared width $s=8$ in a separate training-only rerun, with a snapshot after every round and no test evaluation.
+Its scientific configuration matches the corresponding width-sweep arm except for saving all round snapshots instead of only the final one.
+R0 is the first completed training round, and R9 is the tenth and final round.
+The diagnostic is computed separately for the total-rank groups 16 and 64.
+Cosines compare the effective shared uploads $B_{\mathrm{upload}}A_{\mathrm{upload}}-B_{\mathrm{global}}A_{\mathrm{global}}$ relative to the pre-round global state, concatenated across all LoRA layers.
+For each total rank $r$, the same-rank mean uses different-domain pairs with both clients at $r$; the same-domain mean uses same-domain pairs with different ranks and one client at $r$.
+Domain denotes the recorded dominant task category.
+Each rank group has six same-rank/different-domain pairs and one same-domain/different-rank pair, with membership fixed across rounds.
+The same-domain reference is a single cross-rank pair with entailment as its dominant category, and both curves use this reference.
+All selected cosines are defined in every round; the complete diagnostic contains 28 unordered pairs per round and 280 pair/round records in total.
+Each curve plots the same-rank pair mean minus the same-domain pair mean, so positive values indicate higher same-rank cosine.
+
+\fakeparagraph{Interpretation}
+Both studies use one seed and provide no across-seed uncertainty estimate.
+Rank groups differ in task composition, so their contrasts are descriptive rather than causal rank effects.
+The matched $s=0$ arm permits within-protocol comparisons, but the test curves are descriptive and are not used to select shared widths.
+Changing $s$ jointly changes protected capacity, exchanged content, and training, so these comparisons do not isolate donor-specific transfer or establish a general advantage for sharing.
+The shared same-domain reference is sparse, and the two similarity curves are not independent repeats.
+The two panels use separate runs and endpoints; the cosine diagnostic does not measure benefit to the target client or validate a partner-selection rule.
+Because the averaging rule is fixed in the shared-width sweep, the two panels do not measure an allocation-by-collaboration interaction.
+
+\fakeparagraph{Relation to the Proposed Method}
+The probe couples reception and contribution through the same global width $s$ and averages the shared factors directly, following the selective rank sharing definition in \secref{sec:problem}.
+In \secref{sec:method}, clients instead contribute their complete adapters, while $s_i$ limits the receiving subspace for a projected effective update.
+Consequently, the probe supplies observations for the research questions, while evaluating the proposed reception rule requires its own matched controls.
+
+\section{MMLU-Pro Baseline Results}
+\label{sec:appendix:mmlu-baselines}
+
+% MMLU-Pro is kept here pending the user's decision on its inclusion in the final paper.
+\tabref{tab:exp-mmlu-dir05} reports client-macro multiple-choice (MC) accuracy on MMLU-Pro under Dirichlet $\alpha=0.5$.
+The experiments use Qwen3.5-0.8B, seed 615, and the final checkpoint after 10 communication rounds.
+The 13 clients have total rank budgets 16, 32, and 64, assigned to five, five, and three clients, respectively.
+Accuracy is computed on each client's full original test set and averaged equally across clients.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Client-macro baseline MC accuracy (\%) on MMLU-Pro under Dirichlet $\alpha=0.5$.
+The highest and second-highest scores are shown in bold and underlined, respectively.}
+\label{tab:exp-mmlu-dir05}
+\begin{tabular}{lr}
+\toprule
+\textbf{Method} & \textbf{MC accuracy (\%)} \\
+\midrule
+LocalOnly                          & 30.0322 \\
+FlexLoRA                           & \textbf{31.9374} \\
+FLoRA                              & \underline{30.5800} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+FlexLoRA has the highest MC accuracy among the reported baselines.
